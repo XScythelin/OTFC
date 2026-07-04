@@ -6,30 +6,30 @@
 
 int IORead(IO_t pin)
 {
-    return Espfc::Hal::Gpio::digitalRead(pin);
+    return Otfc::Hal::Gpio::digitalRead(pin);
 }
 
 void IOConfigGPIO(IO_t pin, uint8_t mode)
 {
     switch(mode) {
         case IOCFG_IPU:
-            Espfc::Hal::Gpio::pinMode(pin, INPUT_PULLUP);
+            Otfc::Hal::Gpio::pinMode(pin, INPUT_PULLUP);
             break;
         case IOCFG_OUT_PP:
         case IOCFG_AF_PP:
-            Espfc::Hal::Gpio::pinMode(pin, OUTPUT);
+            Otfc::Hal::Gpio::pinMode(pin, OUTPUT);
             break;
     }
 }
 
 void IOHi(IO_t pin)
 {
-    Espfc::Hal::Gpio::digitalWrite(pin, HIGH);
+    Otfc::Hal::Gpio::digitalWrite(pin, HIGH);
 }
 
 void IOLo(IO_t pin)
 {
-    Espfc::Hal::Gpio::digitalWrite(pin, LOW);
+    Otfc::Hal::Gpio::digitalWrite(pin, LOW);
 }
 
 static serialPort_t _sp[2] = {{
@@ -46,7 +46,7 @@ static serialPortConfig_t _spc = {
 void serialDeviceInit(void * serial, size_t index)
 {
   if(index > 1) return;
-  _sp[index].espfcDevice = serial;
+  _sp[index].otfcDevice = serial;
 }
 
 serialPort_t *findSharedSerialPort(uint16_t functionMask, serialPortFunction_e sharedWithFunction)
@@ -98,34 +98,34 @@ void serialEndWrite(serialPort_t * instance)
 
 void FAST_CODE_ATTR serialWrite(serialPort_t * instance, uint8_t ch)
 {
-  Espfc::Device::SerialDevice * dev = (Espfc::Device::SerialDevice *)instance->espfcDevice;
+  Otfc::Device::SerialDevice * dev = (Otfc::Device::SerialDevice *)instance->otfcDevice;
   if(dev) dev->write(ch);
 }
 
 uint32_t FAST_CODE_ATTR serialRxBytesWaiting(serialPort_t * instance)
 {
-  Espfc::Device::SerialDevice * dev = (Espfc::Device::SerialDevice *)instance->espfcDevice;
+  Otfc::Device::SerialDevice * dev = (Otfc::Device::SerialDevice *)instance->otfcDevice;
   if(!dev) return 0;
   return dev->available();
 }
 
 int FAST_CODE_ATTR serialRead(serialPort_t * instance)
 {
-  Espfc::Device::SerialDevice * dev = (Espfc::Device::SerialDevice *)instance->espfcDevice;
+  Otfc::Device::SerialDevice * dev = (Otfc::Device::SerialDevice *)instance->otfcDevice;
   if(dev) return dev->read();
   return -1;
 }
 
 uint32_t FAST_CODE_ATTR serialTxBytesFree(const serialPort_t * instance)
 {
-  Espfc::Device::SerialDevice * dev = (Espfc::Device::SerialDevice *)instance->espfcDevice;
+  Otfc::Device::SerialDevice * dev = (Otfc::Device::SerialDevice *)instance->otfcDevice;
   if(!dev) return 0;
   return dev->availableForWrite();
 }
 
 bool FAST_CODE_ATTR isSerialTransmitBufferEmpty(const serialPort_t * instance)
 {
-  Espfc::Device::SerialDevice * dev = (Espfc::Device::SerialDevice *)instance->espfcDevice;
+  Otfc::Device::SerialDevice * dev = (Otfc::Device::SerialDevice *)instance->otfcDevice;
   if(!dev) return 0;
   return dev->isTxFifoEmpty();
 }

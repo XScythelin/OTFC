@@ -18,7 +18,7 @@ def run_clang_format_base(check_only=False):
 
     # 2. Define directories and extensions to process
     proj_dir = env.get("PROJECT_DIR")
-    source_dirs = ["src", "lib/Espfc/src"]
+    source_dirs = ["src", "lib/Otfc/src"]
     extensions = (".cpp", ".c", ".h", ".hpp", ".ipp")
     
     files_to_format = []

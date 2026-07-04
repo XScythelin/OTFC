@@ -2,7 +2,7 @@
 #include <Wire.h>
 #include <SPI.h>
 #include <EEPROM.h>
-#include <Espfc.h>
+#include <Otfc.h>
 #include <Kalman.h>
 #include <Madgwick.h>
 #include <Mahony.h>
@@ -11,22 +11,22 @@
 #include <EscDriver.h>
 #include <EspWire.h>
 #include <Gps.hpp>
-#if defined(ESPFC_ESPNOW)
+#if defined(OTFC_ESPNOW)
 #include <EspNowRcLink/Receiver.h>
 #endif
-#ifdef ESPFC_WIFI
+#ifdef OTFC_WIFI
 #include <WiFi.h>
 #endif
-#include "Debug_Espfc.h"
+#include "Debug_Otfc.h"
 
 #ifdef ESP32
 void IRAM_ATTR serialEventRun(void) {}
 #endif
 
-Espfc::Espfc espfc;
+Otfc::Otfc otfc;
 
-#if defined(ESPFC_MULTI_CORE)
-  #if defined(ESPFC_FREE_RTOS)
+#if defined(OTFC_MULTI_CORE)
+  #if defined(OTFC_FREE_RTOS)
 
     // ESP32 multicore
     #include <freertos/FreeRTOS.h>
@@ -65,12 +65,12 @@ Espfc::Espfc espfc;
 
     void gyroTask(void *pvParameters)
     {
-      espfc.begin();
-      gyroTimerInit(gyroTimerIsr, espfc.getGyroInterval());
+      otfc.begin();
+      gyroTimerInit(gyroTimerIsr, otfc.getGyroInterval());
       while(true)
       {
         ulTaskNotifyTake(pdTRUE, portMAX_DELAY); // wait for timer isr notification
-        espfc.update(true);
+        otfc.update(true);
       }
     }
 
@@ -78,7 +78,7 @@ Espfc::Espfc espfc;
     {
       while(true)
       {
-        espfc.updateOther();
+        otfc.updateOther();
       }
     }
 
@@ -88,7 +88,7 @@ Espfc::Espfc espfc;
       // internal task priorities
       // PRO(0): hi-res timer(22), timer(1), event-loop(20), lwip(18/any), wifi(23), wpa(2/any), BT/vhci(23), NimBle(21), BT/other(19,20,22), Eth(15), Mqtt(5/any)
       // APP(1): free
-      espfc.load();
+      otfc.load();
       xTaskCreateUniversal(gyroTask, "gyroTask", 8192, NULL, 24, &gyroTaskHandle, 1);
       xTaskCreateUniversal(pidTask,  "pidTask",  8192, NULL,  1, &pidTaskHandle,  0);
       vTaskDelete(NULL); // delete arduino loop task
@@ -107,13 +107,13 @@ Espfc::Espfc espfc;
   // single core
   void setup()
   {
-    espfc.load();
-    espfc.begin();
+    otfc.load();
+    otfc.begin();
   }
   void loop()
   {
-    espfc.update();
-    espfc.updateOther();
+    otfc.update();
+    otfc.updateOther();
   }
 
 #endif

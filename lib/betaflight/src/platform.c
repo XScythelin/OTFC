@@ -1,8 +1,8 @@
 #include "platform.h"
 
-const char * const targetName = ESPFC_TARGET;
-const char * const targetVersion = STR(ESPFC_VERSION);
-const char * const shortGitRevision = STR(ESPFC_REVISION);
+const char * const targetName = OTFC_TARGET;
+const char * const targetVersion = STR(OTFC_VERSION);
+const char * const shortGitRevision = STR(OTFC_REVISION);
 const char * const buildTime = __TIME__;
 const char * const buildDate = __DATE__;
 const char * flightControllerIdentifier = "BTFL";

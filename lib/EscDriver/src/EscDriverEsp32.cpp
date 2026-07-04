@@ -2,7 +2,7 @@
 
 #include <Arduino.h>
 #include "EscDriverEsp32.h"
-//#include "Debug_Espfc.h"
+//#include "Debug_Otfc.h"
 #include "soc/rmt_periph.h"
 #include "hal/rmt_ll.h"
 #include "hal/gpio_ll.h"
@@ -14,13 +14,13 @@ static constexpr size_t DURATION_CLOCK = 25; // [ns] doubled value to increase p
 #define RMT_RX_CHANNEL_ENCODING_START (SOC_RMT_CHANNELS_PER_GROUP - SOC_RMT_TX_CANDIDATES_PER_GROUP)
 #define RMT_ENCODE_RX_CHANNEL(encode_chan) ((encode_chan + RMT_RX_CHANNEL_ENCODING_START))
 
-#define ESPFC_RMT_RX_BUFFER_SIZE 128
+#define OTFC_RMT_RX_BUFFER_SIZE 128
 
 // faster esc response, but unsafe (no task synchronisation)
 // set to 0 in case of issues
-#define ESPFC_RMT_BYPASS_WRITE_SYNC 1
+#define OTFC_RMT_BYPASS_WRITE_SYNC 1
 
-#if ESPFC_RMT_BYPASS_WRITE_SYNC
+#if OTFC_RMT_BYPASS_WRITE_SYNC
 IRAM_ATTR static esp_err_t _rmt_fill_tx_items(rmt_channel_t channel, const rmt_item32_t* item, uint16_t item_num, uint16_t mem_offset)
 {
   //rmt_ll_enable_mem_access(&RMT, true);
@@ -179,7 +179,7 @@ void EscDriverEsp32::initChannel(int i, gpio_num_t pin, int pulse)
 
     if(splitted)
     {
-      rmt_driver_install((rmt_channel_t)rx_ch, ESPFC_RMT_RX_BUFFER_SIZE, ESP_INTR_FLAG_IRAM);
+      rmt_driver_install((rmt_channel_t)rx_ch, OTFC_RMT_RX_BUFFER_SIZE, ESP_INTR_FLAG_IRAM);
     }
   }
 
@@ -188,7 +188,7 @@ void EscDriverEsp32::initChannel(int i, gpio_num_t pin, int pulse)
   txconf.clk_div = _channel[i].divider;
   txconf.tx_config.idle_level = _dshot_tlm ? RMT_IDLE_LEVEL_HIGH : RMT_IDLE_LEVEL_LOW;
   rmt_config(&txconf);
-  rmt_driver_install((rmt_channel_t)i, splitted ? 0 : ESPFC_RMT_RX_BUFFER_SIZE, ESP_INTR_FLAG_IRAM);
+  rmt_driver_install((rmt_channel_t)i, splitted ? 0 : OTFC_RMT_RX_BUFFER_SIZE, ESP_INTR_FLAG_IRAM);
 
 #if 0 && SOC_RMT_SUPPORT_TX_SYNCHRO
   // sync all channels
