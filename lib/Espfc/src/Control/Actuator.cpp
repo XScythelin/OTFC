@@ -184,7 +184,9 @@ bool Actuator::canActivateMode(FlightMode mode)
     case MODE_AIRMODE:
       return _model.state.mode.airmodeAllowed;
     case MODE_ALTHOLD:
-      return _model.baroActive() && _model.state.baro.altitudeBiasSamples < 0;
+      return _model.baroReadyForAltHold();
+    case MODE_SURFACE:
+      return _model.baroReadyForAltHold();
     default:
       return true;
   }

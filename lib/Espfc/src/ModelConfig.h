@@ -666,6 +666,7 @@ struct AltHoldConfig
   int8_t throttleMode = ALTHOLD_THROTTLE_STICK;
   int8_t stickDeadband = 15;      // throttle deadband around neutral [%]
   int16_t manualClimbRate = 100;  // max manual climb/descent rate [cm/s]
+  bool baroFallback = true;       // fallback to manual throttle if baro becomes unhealthy
   uint8_t itermCenter = 50;
   uint8_t itermRange = 50;
   int8_t baroPosWeight = 2;       // baro position correction per loop [%]

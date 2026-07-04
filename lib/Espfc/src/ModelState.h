@@ -242,6 +242,7 @@ struct BaroState
   bool present;
   int32_t rate;
   uint32_t updateCount;
+  uint32_t lastUpdateUs;
 
   float temperatureRaw;
   float temperature;

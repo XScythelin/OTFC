@@ -609,6 +609,7 @@ const Cli::Param * Cli::initialize(ModelConfig& c)
     Param(PSTR("pid_althold_throttle_mode"), reinterpret_cast<int8_t*>(&c.altHold.throttleMode), altHoldThrottleChoices),
     Param(PSTR("pid_althold_deadband"), &c.altHold.stickDeadband),
     Param(PSTR("pid_althold_manual_climb_rate"), reinterpret_cast<int16_t*>(&c.altHold.manualClimbRate)),
+    Param(PSTR("pid_althold_baro_fallback"), &c.altHold.baroFallback),
     Param(PSTR("pid_althold_iterm_center"), &c.altHold.itermCenter),
     Param(PSTR("pid_althold_iterm_range"), &c.altHold.itermRange),
     Param(PSTR("pid_althold_baro_p_weight"), &c.altHold.baroPosWeight),
@@ -1820,6 +1821,21 @@ void Cli::printBaroStatus(Stream& s) const
   
   s.print(F("  Present: "));  
   s.println(_model.state.baro.present ? F("Yes") : F("No"));  
+
+  s.print(F("  Ready for ALTHOLD: "));
+  s.println(_model.baroReadyForAltHold() ? F("Yes") : F("No"));
+
+  const uint32_t lastUpdateUs = _model.state.baro.lastUpdateUs;
+  if(lastUpdateUs)
+  {
+    s.print(F("  Data age: "));
+    s.print((uint32_t)(micros() - lastUpdateUs) / 1000ul);
+    s.println(F(" ms"));
+  }
+  else
+  {
+    s.println(F("  Data age: n/a"));
+  }
   
   if(_model.state.baro.present)  
   {  

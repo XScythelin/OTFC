@@ -180,7 +180,12 @@ void FAST_CODE_ATTR Controller::outerLoop()
 
   // thrust control: iNav-like. Alt-hold engages immediately and throttle stick
   // always commands vertical speed around the center deadband.
-  if (_model.isAltHoldActive())
+  const bool altHoldRequested = _model.isAltHoldActive();
+  const bool altHoldReady = _model.baroReadyForAltHold();
+  const bool baroFallbackEnabled = _model.config.altHold.baroFallback;
+  const bool altHoldAllowed = altHoldRequested && (altHoldReady || !baroFallbackEnabled);
+
+  if (altHoldAllowed)
   {
     if (_model.hasChanged(MODE_ALTHOLD) || _model.hasChanged(MODE_SURFACE))
     {
@@ -247,7 +252,7 @@ void FAST_CODE_ATTR Controller::outerLoop()
   else
   {
     _altHoldPrepareTakeoff = false;
-    if (_model.hasChanged(MODE_ALTHOLD) || _model.hasChanged(MODE_SURFACE))
+    if (_model.hasChanged(MODE_ALTHOLD) || _model.hasChanged(MODE_SURFACE) || (baroFallbackEnabled && altHoldRequested && _model.state.altitude.engaged && !altHoldReady))
     {
       _model.state.outerPid[AXIS_THRUST].resetIterm();
       _model.state.innerPid[AXIS_THRUST].resetIterm();

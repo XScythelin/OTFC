@@ -10,6 +10,7 @@
 #include "Utils/Storage.h"
 #include "Utils/Logger.h"
 #include "Utils/Math.hpp"
+#include <cmath>
 
 namespace Espfc {
 
@@ -125,6 +126,22 @@ class Model
     bool baroActive() const
     {
       return state.baro.present && config.baro.dev != BARO_NONE;
+    }
+
+    bool baroReadyForAltHold() const
+    {
+      if(!baroActive()) return false;
+
+      const auto& baro = state.baro;
+      if(baro.altitudeBiasSamples >= 0) return false;
+      if(baro.lastUpdateUs == 0) return false;
+      if(!std::isfinite(baro.pressure) || !std::isfinite(baro.altitudeGround) || !std::isfinite(baro.vario)) return false;
+
+      const uint32_t samplePeriodUs = baro.rate > 0 ? (1000000ul / (uint32_t)baro.rate) : 50000ul;
+      const uint32_t timeoutUs = Utils::clamp(samplePeriodUs * 8ul, 200000ul, 1000000ul);
+      if((uint32_t)(micros() - baro.lastUpdateUs) > timeoutUs) return false;
+
+      return true;
     }
 
     bool rangefinderActive() const

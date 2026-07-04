@@ -1,6 +1,7 @@
 #include "BaroSensor.hpp"
 #include <functional>
 #include <cmath>
+#include <algorithm>
 
 namespace Espfc::Sensor {
 
@@ -49,6 +50,13 @@ int BaroSensor::begin()
 
   _model.state.baro.rate = rate;
   _model.state.baro.altitudeBiasSamples = biasSamples;
+  _model.state.baro.lastUpdateUs = 0;
+  _groundPressure = _model.state.baro.pressure > 0.f ? _model.state.baro.pressure : 101325.0f;
+  _calPressureMin = _groundPressure;
+  _calPressureMax = _groundPressure;
+  _calPressureSum = 0.0f;
+  _calPressureCount = 0;
+  _groundCalibrated = false;
   _baro->setMode(BARO_MODE_TEMP);
 
   return 1;
@@ -140,34 +148,16 @@ void BaroSensor::updateAltitude()
 
   baro.altitudeRaw = Utils::toAltitude(baro.pressure);
   baro.altitude = _altitudeFilter.update(baro.altitudeRaw);
+  const float varioRaw = (baro.altitude - baro.altitudePrev) * baro.rate;
 
-  if (baro.altitudeBiasSamples > 0)
-  {
-    if (baro.altitudeBiasSamples == 3 * baro.rate)
-    {
-      baro.altitudeBias = baro.altitude;
-    }
-    baro.altitudeBiasSamples--;
-    baro.altitudeBias += (baro.altitude - baro.altitudeBias) * (5.0f / baro.rate);
-  }
-  else if (baro.altitudeBiasSamples == 0)
-  {
-    _model.logger.info().log("BARO BIAS").logln(baro.altitudeBias);
-    baro.altitudeBiasSamples--;
-  }
-  else if (!_model.isModeActive(MODE_ARMED))
-  {
-    // Keep slowly re-zeroing the ground level while disarmed to cancel
-    // MS5611 self-heating drift (no masking happens once armed).
-    baro.altitudeBias += (baro.altitude - baro.altitudeBias) * (1.0f / baro.rate);
-  }
+  updateGroundReference(baro.pressure, varioRaw, _model.isModeActive(MODE_ARMED));
 
   baro.altitudeGround = baro.altitude - baro.altitudeBias;
   baro.updateCount++;
+  baro.lastUpdateUs = micros();
 
-  const float varioAlt = baro.altitude;
-  baro.vario = _varioFilter.update((varioAlt - baro.altitudePrev) * baro.rate);
-  baro.altitudePrev = varioAlt;
+  baro.vario = _varioFilter.update(varioRaw);
+  baro.altitudePrev = baro.altitude;
 
   if (_model.config.debug.mode == DEBUG_BARO)
   {
@@ -176,6 +166,73 @@ void BaroSensor::updateAltitude()
     //_model.state.debug[1] = lrintf(baro.pressureRaw - 100000.0f); // Pa - 100000
     _model.state.debug[2] = lrintf(baro.temperatureRaw * 100.f); // deg C x 100
     _model.state.debug[3] = lrintf(baro.altitudeGround * 100.f); // cm
+  }
+}
+
+void BaroSensor::updateGroundReference(float pressure, float vario, bool armed)
+{
+  Espfc::BaroState& baro = _model.state.baro;
+  const int32_t rate = std::max<int32_t>(baro.rate, 1);
+  const int32_t resetSamples = 3 * rate;
+
+  if (baro.altitudeBiasSamples > 0)
+  {
+    if (baro.altitudeBiasSamples == resetSamples)
+    {
+      baro.altitudeBias = baro.altitude;
+      _calPressureMin = pressure;
+      _calPressureMax = pressure;
+      _calPressureSum = 0.0f;
+      _calPressureCount = 0;
+    }
+
+    baro.altitudeBiasSamples--;
+    baro.altitudeBias += (baro.altitude - baro.altitudeBias) * (5.0f / rate);
+
+    _calPressureMin = std::min(_calPressureMin, pressure);
+    _calPressureMax = std::max(_calPressureMax, pressure);
+    _calPressureSum += pressure;
+    _calPressureCount++;
+
+    // Reject unstable startup windows (propwash / handling / thermal settling)
+    // and restart the initial ground-reference capture.
+    const int32_t evalWindowSamples = std::max<int32_t>(rate / 2, 5);
+    const float pressureSpan = _calPressureMax - _calPressureMin;
+    if (_calPressureCount >= evalWindowSamples)
+    {
+      if (pressureSpan > 120.0f || std::fabs(vario) > 0.8f)
+      {
+        baro.altitudeBiasSamples = resetSamples;
+      }
+      _calPressureMin = pressure;
+      _calPressureMax = pressure;
+      _calPressureSum = 0.0f;
+      _calPressureCount = 0;
+    }
+
+    _groundCalibrated = false;
+    return;
+  }
+
+  if (baro.altitudeBiasSamples == 0)
+  {
+    _model.logger.info().log("BARO BIAS").logln(baro.altitudeBias);
+    baro.altitudeBiasSamples--;
+    _groundPressure = pressure;
+    _groundCalibrated = true;
+    _calPressureMin = pressure;
+    _calPressureMax = pressure;
+    _calPressureSum = 0.0f;
+    _calPressureCount = 0;
+    return;
+  }
+
+  // Keep slowly re-zeroing the ground level while disarmed to cancel
+  // barometer self-heating drift.
+  if (!armed && std::fabs(vario) < 0.5f)
+  {
+    baro.altitudeBias += (baro.altitude - baro.altitudeBias) * (1.0f / rate);
+    _groundPressure += (pressure - _groundPressure) * (1.0f / rate);
   }
 }
 
