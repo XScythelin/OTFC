@@ -102,7 +102,7 @@ int RangefinderSensor::applySample(int32_t raw)
   // tilt-compensate slant distance to vertical height (cosTheta = 1 when level).
   // Reject readings tilted beyond the max angle (Betaflight uses 25 deg -> cos ~0.9063),
   // otherwise the projection produces a meaningless near-zero height.
-  constexpr float RANGEFINDER_MAX_TILT_COS = 0.9063f;
+  constexpr float RANGEFINDER_MAX_TILT_COS = 0.8192f;
   const float cosTheta = _model.state.attitude.cosTheta;
   if (rf.valid && cosTheta >= RANGEFINDER_MAX_TILT_COS)
   {

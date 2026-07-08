@@ -522,10 +522,13 @@ enum ArmingDisabledFlags {
   ARMING_DISABLED_DSHOT_BITBANG   = (1 << 22),
   ARMING_DISABLED_ACC_CALIBRATION = (1 << 23),
   ARMING_DISABLED_MOTOR_PROTOCOL  = (1 << 24),
-  ARMING_DISABLED_ARM_SWITCH      = (1 << 25), // Needs to be the last element, since it's always activated if one of the others is active when arming
+  ARMING_DISABLED_NO_BARO         = (1 << 25),
+  ARMING_DISABLED_NO_RANGEFINDER  = (1 << 26),
+  ARMING_DISABLED_NO_FLOW         = (1 << 27),
+  ARMING_DISABLED_ARM_SWITCH      = (1 << 28), // Needs to be the last element, since it's always activated if one of the others is active when arming
 };
 
-static constexpr size_t ARMING_DISABLED_FLAGS_COUNT = 25;
+static constexpr size_t ARMING_DISABLED_FLAGS_COUNT = 29;
 
 struct WirelessConfig
 {
@@ -547,6 +550,9 @@ struct BlackboxConfig
   int16_t pDenom = 32; // 1k
   int32_t fieldsMask = 0xffff;
   int8_t mode = 0;
+  bool logNavSensors = true;   // log baro/rangefinder/optical-flow to blackbox debug slots
+  bool logNavPidAuto = true;   // log nav PID when ALTHOLD/SURFACE/POSHOLD participated in current flight
+  bool logNavPidForce = false; // force nav PID logging regardless of mode participation
 };
 
 struct DebugConfig
@@ -666,6 +672,7 @@ struct AltHoldConfig
   int8_t throttleMode = ALTHOLD_THROTTLE_STICK;
   int8_t stickDeadband = 15;      // throttle deadband around neutral [%]
   int16_t manualClimbRate = 100;  // max manual climb/descent rate [cm/s]
+  int16_t sensorFaultDisarmDelayMs = 250; // persistent sensor-fault time before forced disarm [ms]
   bool baroFallback = true;       // fallback to manual throttle if baro becomes unhealthy
   uint8_t itermCenter = 50;
   uint8_t itermRange = 50;

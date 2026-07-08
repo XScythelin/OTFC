@@ -34,6 +34,9 @@ private:
   Rates _rates;
   Utils::Filter _speedFilter;
   bool _altHoldPrepareTakeoff;
+  bool _altHoldStickCentered;
+  uint8_t _sensorFaultMask;
+  uint32_t _sensorFaultSinceUs;
 };
 
 } // namespace Otfc::Control

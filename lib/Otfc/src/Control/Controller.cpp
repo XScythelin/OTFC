@@ -23,7 +23,7 @@ static float getAltHoldNeutralThrottle(const Model& model)
   }
 }
 
-Controller::Controller(Model& model): _model(model), _rates{}, _altHoldPrepareTakeoff(false) {}
+Controller::Controller(Model& model): _model(model), _rates{}, _altHoldPrepareTakeoff(false), _altHoldStickCentered(false), _sensorFaultMask(0), _sensorFaultSinceUs(0) {}
 
 int Controller::begin()
 {
@@ -183,7 +183,72 @@ void FAST_CODE_ATTR Controller::outerLoop()
   const bool altHoldRequested = _model.isAltHoldActive();
   const bool altHoldReady = _model.baroReadyForAltHold();
   const bool baroFallbackEnabled = _model.config.altHold.baroFallback;
-  const bool altHoldAllowed = altHoldRequested && (altHoldReady || !baroFallbackEnabled);
+  const bool surfaceMode = _model.isModeActive(MODE_SURFACE);
+  const bool surfaceReady = !surfaceMode
+      || (_model.rangefinderActive() && _model.state.rangefinder.valid);
+  const float surfaceWeight = std::clamp((float)_model.config.altHold.surfaceWeight * 0.01f, 0.0f, 1.0f);
+  const bool baroParticipatesInSurface = surfaceWeight < 1.0f;
+  const bool baroRequiredByMode = _model.isModeActive(MODE_ALTHOLD) || (surfaceMode && baroParticipatesInSurface);
+  const bool baroRequiredLost = baroRequiredByMode && baroFallbackEnabled && !altHoldReady;
+  const bool rangefinderRequiredLost = surfaceMode && !surfaceReady;
+  const bool posHoldFlowRequiredLost = _model.isPosHoldActive() && (!_model.state.flow.present || !_model.state.flow.valid);
+  const bool criticalAltHoldSensorFault = baroRequiredLost || rangefinderRequiredLost;
+  const uint8_t sensorFaultMask = (baroRequiredLost ? 1 : 0)
+      | (rangefinderRequiredLost ? 2 : 0)
+      | (posHoldFlowRequiredLost ? 4 : 0);
+  const uint32_t nowUs = micros();
+
+  if (sensorFaultMask == 0)
+  {
+    _sensorFaultMask = 0;
+    _sensorFaultSinceUs = 0;
+  }
+  else if (_sensorFaultMask != sensorFaultMask)
+  {
+    _sensorFaultMask = sensorFaultMask;
+    _sensorFaultSinceUs = nowUs;
+  }
+
+  const int32_t disarmDelayMsCfg = std::clamp((int32_t)_model.config.altHold.sensorFaultDisarmDelayMs, 0, 5000);
+  const uint32_t disarmDelayMs = (uint32_t)disarmDelayMsCfg;
+  const bool sensorFaultPersistent = sensorFaultMask != 0
+      && (disarmDelayMs == 0 || (uint32_t)(nowUs - _sensorFaultSinceUs) >= (disarmDelayMs * 1000ul));
+
+  _model.setArmingDisabled(ARMING_DISABLED_NO_BARO, baroRequiredLost);
+  _model.setArmingDisabled(ARMING_DISABLED_NO_RANGEFINDER, rangefinderRequiredLost);
+  _model.setArmingDisabled(ARMING_DISABLED_NO_FLOW, posHoldFlowRequiredLost);
+
+  if (posHoldFlowRequiredLost)
+  {
+    if (sensorFaultPersistent && _model.isModeActive(MODE_ARMED))
+    {
+      _model.disarm(DISARM_REASON_ARMING_DISABLED);
+    }
+    _model.state.posHold.engaged = false;
+    _model.state.posHold.posX = _model.state.posHold.posY = 0.0f;
+    _model.state.posHold.angle[0] = _model.state.posHold.angle[1] = 0.0f;
+    _model.state.posHold.pidPosX.iTerm = _model.state.posHold.pidPosY.iTerm = 0.0f;
+    _model.state.posHold.pidVelX.iTerm = _model.state.posHold.pidVelY.iTerm = 0.0f;
+  }
+
+  if (criticalAltHoldSensorFault && sensorFaultPersistent)
+  {
+    if (_model.isModeActive(MODE_ARMED))
+    {
+      _model.disarm(DISARM_REASON_ARMING_DISABLED);
+    }
+    _altHoldPrepareTakeoff = false;
+    _altHoldStickCentered = false;
+    _model.state.altitude.target = _model.state.altitude.height;
+    _model.state.altitude.engaged = false;
+    _model.state.outerPid[AXIS_THRUST].resetIterm();
+    _model.state.innerPid[AXIS_THRUST].resetIterm();
+    _model.state.setpoint.rate[AXIS_THRUST] = 0.f;
+    return;
+  }
+
+  const bool baroAllowedForMode = !baroFallbackEnabled || !baroRequiredByMode || altHoldReady;
+  const bool altHoldAllowed = altHoldRequested && surfaceReady && baroAllowedForMode;
 
   if (altHoldAllowed)
   {
@@ -237,6 +302,19 @@ void FAST_CODE_ATTR Controller::outerLoop()
     }
 
     const float climbRate = calcualteAltHoldSetpoint();
+    const bool stickCentered = climbRate == 0.f;
+    const bool recentered = !_altHoldStickCentered && stickCentered;
+    _altHoldStickCentered = stickCentered;
+
+    if (recentered)
+    {
+      // Re-anchor the hold target when the pilot releases the throttle stick
+      // back into the deadband so we do not jump toward an outdated target.
+      _model.state.altitude.target = _model.state.altitude.height;
+      _model.state.outerPid[AXIS_THRUST].resetIterm();
+      _model.state.innerPid[AXIS_THRUST].resetIterm();
+    }
+
     if (climbRate != 0.f)
     {
       // stick out of deadband: move the target and command the climb-rate directly
@@ -252,7 +330,8 @@ void FAST_CODE_ATTR Controller::outerLoop()
   else
   {
     _altHoldPrepareTakeoff = false;
-    if (_model.hasChanged(MODE_ALTHOLD) || _model.hasChanged(MODE_SURFACE) || (baroFallbackEnabled && altHoldRequested && _model.state.altitude.engaged && !altHoldReady))
+    _altHoldStickCentered = false;
+    if (_model.hasChanged(MODE_ALTHOLD) || _model.hasChanged(MODE_SURFACE) || (baroRequiredLost && _model.state.altitude.engaged))
     {
       _model.state.outerPid[AXIS_THRUST].resetIterm();
       _model.state.innerPid[AXIS_THRUST].resetIterm();

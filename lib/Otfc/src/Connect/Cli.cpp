@@ -609,6 +609,7 @@ const Cli::Param * Cli::initialize(ModelConfig& c)
     Param(PSTR("pid_althold_throttle_mode"), reinterpret_cast<int8_t*>(&c.altHold.throttleMode), altHoldThrottleChoices),
     Param(PSTR("pid_althold_deadband"), &c.altHold.stickDeadband),
     Param(PSTR("pid_althold_manual_climb_rate"), reinterpret_cast<int16_t*>(&c.altHold.manualClimbRate)),
+    Param(PSTR("pid_althold_sensor_fault_disarm_delay"), &c.altHold.sensorFaultDisarmDelayMs),
     Param(PSTR("pid_althold_baro_fallback"), &c.altHold.baroFallback),
     Param(PSTR("pid_althold_iterm_center"), &c.altHold.itermCenter),
     Param(PSTR("pid_althold_iterm_range"), &c.altHold.itermRange),
@@ -770,6 +771,9 @@ const Cli::Param * Cli::initialize(ModelConfig& c)
     Param(PSTR("blackbox_log_rpm"), &c.blackbox.fieldsMask, BLACKBOX_FIELD_RPM),
     Param(PSTR("blackbox_log_rssi"), &c.blackbox.fieldsMask, BLACKBOX_FIELD_RSSI),
     Param(PSTR("blackbox_log_sp"), &c.blackbox.fieldsMask, BLACKBOX_FIELD_SETPOINT),
+    Param(PSTR("blackbox_log_nav_sensors"), &c.blackbox.logNavSensors),
+    Param(PSTR("blackbox_log_nav_pid_auto"), &c.blackbox.logNavPidAuto),
+    Param(PSTR("blackbox_log_nav_pid_force"), &c.blackbox.logNavPidForce),
 
     Param(PSTR("model_name"), PARAM_STRING, &c.modelName[0], NULL, MODEL_NAME_LEN),
 
@@ -1383,7 +1387,7 @@ void Cli::execute(CliCmd& cmd, Stream& s)
       PSTR("CALIBRATING"), PSTR("CLI"), PSTR("CMS_MENU"), PSTR("BST"),
       PSTR("MSP"), PSTR("PARALYZE"), PSTR("GPS"), PSTR("RESC"),
       PSTR("RPMFILTER"), PSTR("REBOOT_REQUIRED"), PSTR("DSHOT_BITBANG"), PSTR("ACC_CALIBRATION"),
-      PSTR("MOTOR_PROTOCOL"), PSTR("ARM_SWITCH")
+      PSTR("MOTOR_PROTOCOL"), PSTR("NO_BARO"), PSTR("NO_RANGEFINDER"), PSTR("NO_FLOW"), PSTR("ARM_SWITCH")
     };
     const size_t armingDisableNamesLength = sizeof(armingDisableNames) / sizeof(armingDisableNames[0]);
 
@@ -1394,6 +1398,20 @@ void Cli::execute(CliCmd& cmd, Stream& s)
         s.print(' ');
         s.print(armingDisableNames[i]);
       }
+    }
+    s.println();
+    const uint32_t sensorFaultFlags = _model.state.mode.armingDisabledFlags
+        & (ARMING_DISABLED_NO_BARO | ARMING_DISABLED_NO_RANGEFINDER | ARMING_DISABLED_NO_FLOW);
+    s.print(F("sensor fault:"));
+    if(sensorFaultFlags == 0)
+    {
+      s.print(F(" NONE"));
+    }
+    else
+    {
+      if(sensorFaultFlags & ARMING_DISABLED_NO_BARO) s.print(F(" NO_BARO"));
+      if(sensorFaultFlags & ARMING_DISABLED_NO_RANGEFINDER) s.print(F(" NO_RANGEFINDER"));
+      if(sensorFaultFlags & ARMING_DISABLED_NO_FLOW) s.print(F(" NO_FLOW"));
     }
     s.println();
     s.print(F(" rescue mode: "));

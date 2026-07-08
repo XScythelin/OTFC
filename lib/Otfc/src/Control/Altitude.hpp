@@ -32,6 +32,10 @@ public:
     const float dt = _model.state.accel.timer.intervalf;
     auto& altitude = _model.state.altitude;
     const auto& altCfg = _model.config.altHold;
+    const bool surfaceMode = _model.isModeActive(MODE_SURFACE);
+    const float surfaceWeight = std::clamp((float)altCfg.surfaceWeight * 0.01f, 0.0f, 1.0f);
+    const bool baroParticipatesInSurface = surfaceWeight < 1.0f;
+    const bool useBaroCorrection = _model.baroActive() && (!surfaceMode || baroParticipatesInSurface);
 
     if(_model.accelActive())
     {
@@ -48,7 +52,7 @@ public:
       altitude.accelHeight += altitude.accelVario * dt + 0.5f * linearAccelZ * dt * dt;
     }
 
-    if(_model.baroActive())
+    if(useBaroCorrection)
     {
       altitude.baroHeight = _model.state.baro.altitudeGround;
       // continuous complementary correction every loop so accel drift can't accumulate
@@ -65,9 +69,8 @@ public:
     // Laser rangefinder gives an accurate surface distance close to the ground.
     // Only the dedicated MODE_SURFACE blends it in; the plain MODE_ALTHOLD stays
     // on baro + accel so behaviour matches the selected mode.
-    if(_model.isModeActive(MODE_SURFACE) && _model.rangefinderActive() && _model.state.rangefinder.valid)
+    if(surfaceMode && _model.rangefinderActive() && _model.state.rangefinder.valid)
     {
-      const float surfaceWeight = std::clamp((float)altCfg.surfaceWeight * 0.01f, 0.0f, 1.0f);
       altitude.accelHeight += (_model.state.rangefinder.height - altitude.accelHeight) * surfaceWeight;
     }
 

@@ -27,6 +27,7 @@ class Blackbox
     pidProfile_s _pidProfile;
     Device::SerialDevice * _serial;
     BlackboxSerialBuffer _buffer;
+    uint8_t _navPidParticipationMask;
 };
 
 }

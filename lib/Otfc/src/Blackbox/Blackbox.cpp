@@ -8,13 +8,24 @@ namespace Otfc {
 
 namespace Blackbox {
 
+enum {
+  NAV_PID_PARTICIPATED_ALTHOLD = (1 << 0),
+  NAV_PID_PARTICIPATED_SURFACE = (1 << 1),
+  NAV_PID_PARTICIPATED_POSHOLD = (1 << 2),
+};
+
+static int16_t clampToDebug16(float value)
+{
+  return (int16_t)constrain(lrintf(value), -32768, 32767);
+}
+
 static void updateModeFlag(boxBitmask_t *mask, boxId_e id, bool value)
 {
   if(value) bitArraySet(mask, id);
   else bitArrayClr(mask, id);
 }
 
-Blackbox::Blackbox(Model& model): _model(model) {}
+Blackbox::Blackbox(Model& model): _model(model), _serial(nullptr), _navPidParticipationMask(0) {}
 
 int Blackbox::begin()
 {
@@ -151,6 +162,7 @@ int Blackbox::begin()
   if(_model.accelActive()) sensorsSet(SENSOR_ACC);
   if(_model.magActive()) sensorsSet(SENSOR_MAG);
   if(_model.baroActive()) sensorsSet(SENSOR_BARO);
+  if(_model.rangefinderActive()) sensorsSet(SENSOR_SONAR);
 
   gyro.sampleLooptime = _model.state.gyro.timer.interval;
   targetPidLooptime = _model.state.loopTimer.interval;
@@ -166,6 +178,20 @@ int Blackbox::begin()
   }
   blackboxConfigMutable()->device = _model.config.blackbox.dev;
   blackboxConfigMutable()->fields_disabled_mask = ~_model.config.blackbox.fieldsMask;
+
+  const bool navDebugRequired = _model.config.blackbox.logNavSensors
+      || _model.config.blackbox.logNavPidAuto
+      || _model.config.blackbox.logNavPidForce;
+  if(navDebugRequired)
+  {
+    // Nav overlays are stored in debug slots, so ensure debug stream is available in log headers.
+    blackboxConfigMutable()->fields_disabled_mask &= ~(1u << BLACKBOX_FIELD_DEBUG_LOG);
+    if(debugMode == DEBUG_NONE)
+    {
+      systemConfigMutable()->debug_mode = debugMode = DEBUG_ALTITUDE;
+    }
+  }
+
   blackboxConfigMutable()->mode = _model.config.blackbox.mode;
 
   featureConfigMutable()->enabledFeatures = _model.config.featureMask;
@@ -239,6 +265,13 @@ int FAST_CODE_ATTR Blackbox::update()
 
 void FAST_CODE_ATTR Blackbox::updateData()
 {
+  if(_model.isModeActive(MODE_ARMED))
+  {
+    if(_model.isModeActive(MODE_ALTHOLD)) _navPidParticipationMask |= NAV_PID_PARTICIPATED_ALTHOLD;
+    if(_model.isModeActive(MODE_SURFACE)) _navPidParticipationMask |= NAV_PID_PARTICIPATED_SURFACE;
+    if(_model.isModeActive(MODE_POSHOLD)) _navPidParticipationMask |= NAV_PID_PARTICIPATED_POSHOLD;
+  }
+
   for(size_t i = 0; i < AXIS_COUNT_RPY; i++)
   {
     gyro.gyroADCf[i] = Utils::toDeg(_model.state.gyro.adc[i]);
@@ -274,6 +307,44 @@ void FAST_CODE_ATTR Blackbox::updateData()
       debug[i] = _model.state.debug[i];
     }
   }
+
+  if(_model.config.blackbox.logNavSensors)
+  {
+    debug[0] = _model.baroActive() ? clampToDebug16(_model.state.baro.altitudeGround * 100.0f) : INT16_MIN;
+    debug[1] = (_model.rangefinderActive() && _model.state.rangefinder.valid)
+        ? clampToDebug16(_model.state.rangefinder.height * 1000.0f)
+        : INT16_MIN;
+
+    const bool flowValid = _model.state.flow.present && _model.state.flow.valid;
+    debug[2] = flowValid ? constrain(_model.state.flow.motionX, -32768, 32767) : 0;
+    debug[3] = flowValid ? constrain(_model.state.flow.motionY, -32768, 32767) : 0;
+  }
+
+  const bool navPidAllowed = _model.config.blackbox.logNavPidForce
+      || (_model.config.blackbox.logNavPidAuto && _navPidParticipationMask != 0);
+  if(navPidAllowed)
+  {
+    const bool posHoldUsed = (_navPidParticipationMask & NAV_PID_PARTICIPATED_POSHOLD) != 0;
+
+    if(posHoldUsed)
+    {
+      const auto& ph = _model.state.posHold;
+      debug[4] = clampToDebug16(ph.pidPosX.pTerm * 1000.0f);
+      debug[5] = clampToDebug16(ph.pidPosY.pTerm * 1000.0f);
+      debug[6] = clampToDebug16(ph.pidVelX.pTerm * 1000.0f);
+      debug[7] = clampToDebug16(ph.pidVelY.pTerm * 1000.0f);
+    }
+    else
+    {
+      const auto& altPosPid = _model.state.outerPid[AXIS_THRUST];
+      const auto& altVelPid = _model.state.innerPid[AXIS_THRUST];
+      debug[4] = clampToDebug16(altPosPid.pTerm * 1000.0f);
+      debug[5] = clampToDebug16(altPosPid.iTerm * 1000.0f);
+      debug[6] = clampToDebug16(altVelPid.pTerm * 1000.0f);
+      debug[7] = clampToDebug16(altVelPid.iTerm * 1000.0f);
+    }
+  }
+
   GPS_home[0] = _model.state.gps.location.home.lat;
   GPS_home[1] = _model.state.gps.location.home.lon;
   gpsSol.llh.lat = _model.state.gps.location.raw.lat;
@@ -307,6 +378,7 @@ void FAST_CODE_ATTR Blackbox::updateArmed()
   if(armed)
   {
     ENABLE_ARMING_FLAG(ARMED);
+    _navPidParticipationMask = 0;
     beep = _model.state.loopTimer.last + 200000; // schedule arming beep event ~200ms
   }
   else
