@@ -992,7 +992,7 @@ void Cli::execute(CliCmd& cmd, Stream& s)
       PSTR(" help"), PSTR(" dump"), PSTR(" get param"), PSTR(" set param value ..."), PSTR(" cal [gyro]"),
       PSTR(" defaults"), PSTR(" save"), PSTR(" reboot"), PSTR(" scaler"), PSTR(" mixer"),
       PSTR(" stats"), PSTR(" status"), PSTR(" devinfo"), PSTR(" version"), PSTR(" logs"), PSTR(" gps [set_home|clear_home]"),
-      PSTR(" baro"), PSTR(" rangefinder"), PSTR(" flow"), PSTR(" flow watch [ms|stop]"),
+      PSTR(" baro"), PSTR(" rangefinder"), PSTR(" i2cscan"), PSTR(" flow"), PSTR(" flow watch [ms|stop]"),
       //PSTR(" load"), PSTR(" eeprom"),
       //PSTR(" fsinfo"), PSTR(" fsformat"), PSTR(" log"),
       nullptr
@@ -1429,6 +1429,10 @@ void Cli::execute(CliCmd& cmd, Stream& s)
   else if(strcmp_P(cmd.args[0], PSTR("rangefinder")) == 0)
   {
     printRangefinderStatus(s);
+  }
+  else if(strcmp_P(cmd.args[0], PSTR("i2cscan")) == 0)
+  {
+    printI2CScan(s);
   }
   else if(strcmp_P(cmd.args[0], PSTR("flow")) == 0)
   {
@@ -1938,6 +1942,35 @@ void Cli::printRangefinderStatus(Stream& s) const
     s.print(_model.state.rangefinder.height, 3);
     s.println(F(" m"));
   }
+}
+
+void Cli::printI2CScan(Stream& s) const
+{
+#if defined(OTFC_I2C_0)
+  s.println(F("I2C SCAN:"));
+
+  size_t found = 0;
+  for(uint8_t addr = 1; addr < 127; addr++)
+  {
+    WireInstance.beginTransmission(addr);
+    const uint8_t err = WireInstance.endTransmission();
+    if(err == 0)
+    {
+      s.print(F("  0x"));
+      if(addr < 16) s.print('0');
+      s.print(addr, HEX);
+      if(addr == 0x10) s.print(F(" (TF-LUNA default)"));
+      if(addr == 0x29) s.print(F(" (VL53L0X default)"));
+      s.println();
+      found++;
+    }
+  }
+
+  s.print(F("FOUND: "));
+  s.println(found);
+#else
+  s.println(F("I2C is not enabled in this target"));
+#endif
 }
 
 void Cli::printFlowStatus(Stream& s) const

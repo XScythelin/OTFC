@@ -4,7 +4,8 @@
 namespace Otfc::Sensor {
 
 RangefinderSensor::RangefinderSensor(Model& model):
-  _model(model), _rangefinder(nullptr), _wait(0), _maxRangeMm(0), _isMsp(false), _lastExtTs(0) {}
+  _model(model), _rangefinder(nullptr), _wait(0), _maxRangeMm(0), _isMsp(false), _lastExtTs(0),
+  _lastGoodTs(0), _lastGoodDistance(0.0f), _lastGoodHeight(0.0f) {}
 
 int RangefinderSensor::begin()
 {
@@ -14,6 +15,9 @@ int RangefinderSensor::begin()
   _isMsp = msp;
   _rangefinder = _model.state.rangefinder.dev; // null for MSP source
   _lastExtTs = 0;
+  _lastGoodTs = 0;
+  _lastGoodDistance = 0.0f;
+  _lastGoodHeight = 0.0f;
 
   int rate;
   if (_isMsp)
@@ -92,25 +96,43 @@ int RangefinderSensor::read()
 int RangefinderSensor::applySample(int32_t raw)
 {
   Otfc::RangefinderState& rf = _model.state.rangefinder;
+  const uint32_t now = micros();
 
   rf.raw = raw;
-  rf.valid = raw > 0 && raw <= _maxRangeMm;
+  const bool rawValid = raw > 0 && raw <= _maxRangeMm;
 
-  const float distance = _distanceFilter.update((raw > 0 ? raw : 0) * 0.001f); // mm -> m
-  rf.distance = distance;
+  if (rawValid)
+  {
+    // Update LPF only with valid range samples; injecting zeros causes false dropouts.
+    rf.distance = _distanceFilter.update(raw * 0.001f); // mm -> m
+  }
 
   // tilt-compensate slant distance to vertical height (cosTheta = 1 when level).
   // Reject readings tilted beyond the max angle (Betaflight uses 25 deg -> cos ~0.9063),
   // otherwise the projection produces a meaningless near-zero height.
   constexpr float RANGEFINDER_MAX_TILT_COS = 0.8192f;
+  constexpr uint32_t RANGEFINDER_DROPOUT_HOLD_US = 120000; // hold last valid height for brief dropouts
   const float cosTheta = _model.state.attitude.cosTheta;
-  if (rf.valid && cosTheta >= RANGEFINDER_MAX_TILT_COS)
+  const bool sampleValid = rawValid && cosTheta >= RANGEFINDER_MAX_TILT_COS;
+
+  if (sampleValid)
   {
-    rf.height = distance * cosTheta;
+    rf.valid = true;
+    rf.height = rf.distance * cosTheta;
+    _lastGoodTs = now;
+    _lastGoodDistance = rf.distance;
+    _lastGoodHeight = rf.height;
+  }
+  else if (_lastGoodTs != 0 && (uint32_t)(now - _lastGoodTs) <= RANGEFINDER_DROPOUT_HOLD_US)
+  {
+    rf.valid = true;
+    rf.distance = _lastGoodDistance;
+    rf.height = _lastGoodHeight;
   }
   else
   {
     rf.valid = false;
+    rf.distance = 0.0f;
     rf.height = 0.0f;
   }
   rf.updateCount++;

@@ -3,6 +3,7 @@
 #include "Device/Baro/BaroSPL06.hpp"
 #include "Device/Baro/BaroMS5611.hpp"
 #include "Device/BaroDevice.hpp"
+#include "Device/Rangefinder/RangefinderTFLuna.hpp"
 #include "Device/Rangefinder/RangefinderVL53L0X.hpp"
 #include "Device/RangefinderDevice.hpp"
 #include "Device/GyroBMI160.h"
@@ -56,6 +57,7 @@ static Otfc::Device::Baro::BaroBMP280 bmp280;
 static Otfc::Device::Baro::BaroSPL06 spl06;
 static Otfc::Device::Baro::BaroMS5611 ms5611;
 static Otfc::Device::Rangefinder::RangefinderVL53L0X vl53l0x;
+static Otfc::Device::Rangefinder::RangefinderTFLuna tfLuna;
 
 static bool hasModeCondition(const Otfc::Model& model, Otfc::FlightMode mode)
 {
@@ -316,15 +318,23 @@ void Hardware::detectRangefinder()
   }
 
   Device::RangefinderDevice* detectedRangefinder = nullptr;
+  const bool allowI2c = _model.config.rangefinder.bus == BUS_AUTO || _model.config.rangefinder.bus == BUS_I2C;
+  const bool allowSlave = _model.config.rangefinder.bus == BUS_AUTO || _model.config.rangefinder.bus == BUS_SLV;
+  const bool allowVl53 = _model.config.rangefinder.dev == RANGEFINDER_DEFAULT ||
+                         _model.config.rangefinder.dev == RANGEFINDER_VL53L0X;
+  const bool allowTfLuna = _model.config.rangefinder.dev == RANGEFINDER_DEFAULT ||
+                           _model.config.rangefinder.dev == RANGEFINDER_TF_LUNA;
 #if defined(OTFC_I2C_0)
-  if (_model.config.pin[PIN_I2C_0_SDA] != -1 && _model.config.pin[PIN_I2C_0_SCL] != -1)
+  if (allowI2c && _model.config.pin[PIN_I2C_0_SDA] != -1 && _model.config.pin[PIN_I2C_0_SCL] != -1)
   {
-    if (!detectedRangefinder && detectDevice(vl53l0x, i2cBus)) detectedRangefinder = &vl53l0x;
+    if (!detectedRangefinder && allowVl53 && detectDevice(vl53l0x, i2cBus)) detectedRangefinder = &vl53l0x;
+    if (!detectedRangefinder && allowTfLuna && detectDevice(tfLuna, i2cBus)) detectedRangefinder = &tfLuna;
   }
 #endif
-  if (!isSpiCs0SharedWithGpioOutput(_model) && gyroSlaveBus.getBus())
+  if (allowSlave && !isSpiCs0SharedWithGpioOutput(_model) && gyroSlaveBus.getBus())
   {
-    if (!detectedRangefinder && detectDevice(vl53l0x, gyroSlaveBus)) detectedRangefinder = &vl53l0x;
+    if (!detectedRangefinder && allowVl53 && detectDevice(vl53l0x, gyroSlaveBus)) detectedRangefinder = &vl53l0x;
+    if (!detectedRangefinder && allowTfLuna && detectDevice(tfLuna, gyroSlaveBus)) detectedRangefinder = &tfLuna;
   }
 
   _model.state.rangefinder.dev = detectedRangefinder;

@@ -6,7 +6,7 @@ namespace Otfc::Device {
 
 const char** RangefinderDevice::getNames()
 {
-  static const char* devChoices[] = {PSTR("AUTO"), PSTR("NONE"), PSTR("VL53L0X"), PSTR("MSP"), NULL};
+  static const char* devChoices[] = {PSTR("AUTO"), PSTR("NONE"), PSTR("VL53L0X"), PSTR("MSP"), PSTR("TF-LUNA"), NULL};
   return devChoices;
 }
 

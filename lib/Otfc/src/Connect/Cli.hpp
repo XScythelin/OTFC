@@ -101,6 +101,7 @@ private:
   void printStats(Stream& s) const;
   void printBaroStatus(Stream& s) const;
   void printRangefinderStatus(Stream& s) const;
+  void printI2CScan(Stream& s) const;
   void printFlowStatus(Stream& s) const;
 
   Model& _model;

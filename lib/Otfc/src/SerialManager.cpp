@@ -201,11 +201,17 @@ void SerialManager::processMsp(SerialPortState& ss)
     bool consumed = _msp.parse(*c, ss.mspRequest);
     if(consumed)
     {
-      if(ss.mspRequest.isReady() && ss.mspRequest.isCmd())
+      if(ss.mspRequest.isReady())
       {
-        _msp.processCommand(ss.mspRequest, ss.mspResponse, *ss.stream);
-        _msp.sendResponse(ss.mspResponse, *ss.stream);
-        _msp.postCommand();
+        if(ss.mspRequest.isCmd())
+        {
+          _msp.processCommand(ss.mspRequest, ss.mspResponse, *ss.stream);
+          _msp.sendResponse(ss.mspResponse, *ss.stream);
+          _msp.postCommand();
+        }
+
+        // Always reset after a complete frame. External UART sensors can emit
+        // one-way or reply frames; leaving the parser in RECEIVED wedges the port.
         ss.mspRequest = Connect::MspMessage();
         ss.mspResponse = Connect::MspResponse();
       }

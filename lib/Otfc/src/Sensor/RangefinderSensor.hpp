@@ -26,6 +26,9 @@ private:
   int32_t _maxRangeMm;
   bool _isMsp;
   uint32_t _lastExtTs;
+  uint32_t _lastGoodTs;
+  float _lastGoodDistance;
+  float _lastGoodHeight;
 };
 
 } // namespace Otfc::Sensor
