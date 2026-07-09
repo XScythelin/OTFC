@@ -112,6 +112,7 @@ private:
   bool _flowWatchActive;
   int32_t _flowWatchPeriodMs;
   uint32_t _flowWatchNextTs;
+  uint32_t _flowWatchInputPauseUntilTs;
 };
 
 }

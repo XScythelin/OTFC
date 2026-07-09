@@ -318,7 +318,7 @@ int32_t Cli::Param::parse(const char * v) const
   return tmp.toInt();
 }
 
-Cli::Cli(Model& model): _model(model), _ignore(false), _active(false), _activeStream(nullptr), _flowWatchActive(false), _flowWatchPeriodMs(100), _flowWatchNextTs(0)
+Cli::Cli(Model& model): _model(model), _ignore(false), _active(false), _activeStream(nullptr), _flowWatchActive(false), _flowWatchPeriodMs(100), _flowWatchNextTs(0), _flowWatchInputPauseUntilTs(0)
 {
   _params = initialize(_model.config);
 }
@@ -882,6 +882,7 @@ bool Cli::process(const char c, CliCmd& cmd, Stream& stream)
     _active = false;
     _activeStream = nullptr;
     _flowWatchActive = false;
+    _flowWatchInputPauseUntilTs = 0;
     cmd = CliCmd();
     return true;
   }
@@ -890,11 +891,26 @@ bool Cli::process(const char c, CliCmd& cmd, Stream& stream)
   // Stop watch when user submits any non-empty line (type anything + Enter).
   if(_active && _flowWatchActive)
   {
+    // Let users stop watch immediately without fighting the periodic output.
+    if(c == 'q' || c == 'Q')
+    {
+      _flowWatchActive = false;
+      _flowWatchInputPauseUntilTs = 0;
+      cmd = CliCmd();
+      stream.println();
+      stream.println(F("FLOW WATCH STOPPED"));
+      return true;
+    }
+
+    // Pause stream output while user is typing a command.
+    _flowWatchInputPauseUntilTs = millis() + 1500;
+
     if(c == '\n' || c == '\r')
     {
       if(cmd.index)
       {
         _flowWatchActive = false;
+        _flowWatchInputPauseUntilTs = 0;
         cmd = CliCmd();
         stream.println();
         stream.println(F("FLOW WATCH STOPPED"));
@@ -948,6 +964,7 @@ void Cli::tick(Stream& stream)
   if(!_active || !_flowWatchActive || !_activeStream || (&stream != _activeStream)) return;
 
   const uint32_t now = millis();
+  if((int32_t)(now - _flowWatchInputPauseUntilTs) < 0) return;
   if((int32_t)(now - _flowWatchNextTs) < 0) return;
   _flowWatchNextTs = now + (uint32_t)_flowWatchPeriodMs;
 
@@ -1002,7 +1019,7 @@ void Cli::execute(CliCmd& cmd, Stream& s)
       PSTR(" help"), PSTR(" dump"), PSTR(" get param"), PSTR(" set param value ..."), PSTR(" cal [gyro]"),
       PSTR(" defaults"), PSTR(" save"), PSTR(" reboot"), PSTR(" scaler"), PSTR(" mixer"),
       PSTR(" stats"), PSTR(" status"), PSTR(" devinfo"), PSTR(" version"), PSTR(" logs"), PSTR(" gps [set_home|clear_home]"),
-      PSTR(" baro"), PSTR(" rangefinder"), PSTR(" i2cscan"), PSTR(" flow"), PSTR(" flow watch [ms|stop]"),
+      PSTR(" baro"), PSTR(" rangefinder"), PSTR(" i2cscan"), PSTR(" flow"), PSTR(" flow watch [ms|stop] (q)"),
       //PSTR(" load"), PSTR(" eeprom"),
       //PSTR(" fsinfo"), PSTR(" fsformat"), PSTR(" log"),
       nullptr
@@ -1451,6 +1468,7 @@ void Cli::execute(CliCmd& cmd, Stream& s)
       if(cmd.args[2] && strcmp_P(cmd.args[2], PSTR("stop")) == 0)
       {
         _flowWatchActive = false;
+        _flowWatchInputPauseUntilTs = 0;
         s.println(F("FLOW WATCH STOPPED"));
         return;
       }
@@ -1464,12 +1482,13 @@ void Cli::execute(CliCmd& cmd, Stream& s)
 
       _flowWatchPeriodMs = periodMs;
       _flowWatchNextTs = millis();
+      _flowWatchInputPauseUntilTs = 0;
       _flowWatchActive = true;
 
       s.println(F("FLOW WATCH STARTED (background)"));
       s.print(F("period_ms="));
       s.println(_flowWatchPeriodMs);
-      s.println(F("Use 'flow watch stop' to stop"));
+      s.println(F("Use 'flow watch stop' or press q"));
     }
     else
     {

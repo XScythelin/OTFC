@@ -638,6 +638,17 @@ void FAST_CODE_ATTR Controller::updatePosHold()
     _model.state.flow.valid = false;
   }
 
+  // Reuse RANGEFINDER_QUALITY debug mode to stream optical-flow telemetry to
+  // Betaflight Configurator Sensors page via MSP_DEBUG (debug0..debug3).
+  if (_model.config.debug.mode == DEBUG_RANGEFINDER_QUALITY)
+  {
+    const bool flowPresent = _model.state.flow.present && flowFresh;
+    _model.state.debug[0] = flowPresent ? std::clamp(_model.state.flow.motionX, (int32_t)-32000, (int32_t)32000) : 0;
+    _model.state.debug[1] = flowPresent ? std::clamp(_model.state.flow.motionY, (int32_t)-32000, (int32_t)32000) : 0;
+    _model.state.debug[2] = flowPresent ? _model.state.flow.quality : 0;
+    _model.state.debug[3] = (flowPresent && _model.state.flow.valid) ? 1 : 0;
+  }
+
   const bool active = _model.isPosHoldActive()
       && _model.isModeActive(MODE_ANGLE)
       && _model.isModeActive(MODE_ARMED)

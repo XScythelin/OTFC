@@ -1571,8 +1571,27 @@ void MspProcessor::processCommand(MspMessage& m, MspResponse& r, Device::SerialD
       break;
 
     case MSP_DEBUG:
-      for (int i = 0; i < 8; i++) {
-        r.writeU16(_model.state.debug[i]);
+      if (_model.config.debug.mode == DEBUG_RANGEFINDER_QUALITY)
+      {
+        const auto &f = _model.state.flow;
+        const int16_t flowX = static_cast<int16_t>(std::clamp<int32_t>(f.motionX, -32000, 32000));
+        const int16_t flowY = static_cast<int16_t>(std::clamp<int32_t>(f.motionY, -32000, 32000));
+        const int16_t flowQ = static_cast<int16_t>(f.quality);
+        const int16_t flowV = static_cast<int16_t>(f.valid ? 1 : 0);
+
+        r.writeU16(static_cast<uint16_t>(flowX));
+        r.writeU16(static_cast<uint16_t>(flowY));
+        r.writeU16(static_cast<uint16_t>(flowQ));
+        r.writeU16(static_cast<uint16_t>(flowV));
+        for (int i = 4; i < 8; i++) {
+          r.writeU16(_model.state.debug[i]);
+        }
+      }
+      else
+      {
+        for (int i = 0; i < 8; i++) {
+          r.writeU16(_model.state.debug[i]);
+        }
       }
       break;
 
