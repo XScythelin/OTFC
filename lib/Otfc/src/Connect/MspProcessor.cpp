@@ -1659,6 +1659,13 @@ void MspProcessor::processCommand(MspMessage& m, MspResponse& r, Device::SerialD
     case MSP2_SENSOR_RANGEFINDER:
       // incoming distance feed from an external UART sensor (e.g. MTF-02 lidar)
       {
+        if (m.remain() < 5)
+        {
+          // Malformed payload: ignore and keep previous sample/state.
+          r.result = 0;
+          break;
+        }
+
         const uint8_t quality = m.readU8();
         const int32_t distanceMm = (int32_t)m.readU32(); // negative = out of range
         Otfc::RangefinderState& rf = _model.state.rangefinder;
@@ -1672,6 +1679,13 @@ void MspProcessor::processCommand(MspMessage& m, MspResponse& r, Device::SerialD
     case MSP2_SENSOR_OPTIC_FLOW:
       // incoming optical flow feed from an external UART sensor (e.g. MTF-02)
       {
+        if (m.remain() < 9)
+        {
+          // Malformed payload: ignore and keep previous sample/state.
+          r.result = 0;
+          break;
+        }
+
         const uint8_t quality = m.readU8();
         const int32_t motionX = (int32_t)m.readU32();
         const int32_t motionY = (int32_t)m.readU32();

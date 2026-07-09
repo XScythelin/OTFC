@@ -318,7 +318,7 @@ int32_t Cli::Param::parse(const char * v) const
   return tmp.toInt();
 }
 
-Cli::Cli(Model& model): _model(model), _ignore(false), _active(false), _flowWatchActive(false), _flowWatchPeriodMs(100), _flowWatchNextTs(0)
+Cli::Cli(Model& model): _model(model), _ignore(false), _active(false), _activeStream(nullptr), _flowWatchActive(false), _flowWatchPeriodMs(100), _flowWatchNextTs(0)
 {
   _params = initialize(_model.config);
 }
@@ -861,6 +861,7 @@ bool Cli::process(const char c, CliCmd& cmd, Stream& stream)
   {
     //FIXME: detect disconnection
     _active = true;
+    _activeStream = &stream;
     stream.println();
     stream.println(F("Entering CLI Mode, type 'exit' to return, or 'help'"));
     stream.print(F("# "));
@@ -870,11 +871,16 @@ bool Cli::process(const char c, CliCmd& cmd, Stream& stream)
     cmd = CliCmd();
     return true;
   }
+
+  // CLI session is bound to the stream where it was activated.
+  if(_active && _activeStream && (&stream != _activeStream)) return false;
+
   if(_active && c == 4) // CTRL-D
   {
     stream.println();
     stream.println(F(" #leaving CLI mode, unsaved changes lost"));
     _active = false;
+    _activeStream = nullptr;
     _flowWatchActive = false;
     cmd = CliCmd();
     return true;
@@ -939,11 +945,15 @@ bool Cli::process(const char c, CliCmd& cmd, Stream& stream)
 
 void Cli::tick(Stream& stream)
 {
-  if(!_active || !_flowWatchActive) return;
+  if(!_active || !_flowWatchActive || !_activeStream || (&stream != _activeStream)) return;
 
   const uint32_t now = millis();
   if((int32_t)(now - _flowWatchNextTs) < 0) return;
   _flowWatchNextTs = now + (uint32_t)_flowWatchPeriodMs;
+
+  // Avoid blocking the control loop when serial TX is congested.
+  constexpr int FLOW_WATCH_MIN_TX_SPACE = 64;
+  if(stream.availableForWrite() < FLOW_WATCH_MIN_TX_SPACE) return;
 
   const Otfc::FlowState& f = _model.state.flow;
   stream.print(F("t_ms="));

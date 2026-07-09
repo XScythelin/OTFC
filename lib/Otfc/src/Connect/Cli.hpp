@@ -108,6 +108,7 @@ private:
   const Param * _params;
   bool _ignore;
   bool _active;
+  Stream* _activeStream;
   bool _flowWatchActive;
   int32_t _flowWatchPeriodMs;
   uint32_t _flowWatchNextTs;
