@@ -111,7 +111,9 @@ int RangefinderSensor::applySample(int32_t raw)
   // Reject readings tilted beyond the max angle (Betaflight uses 25 deg -> cos ~0.9063),
   // otherwise the projection produces a meaningless near-zero height.
   constexpr float RANGEFINDER_MAX_TILT_COS = 0.8192f;
-  constexpr uint32_t RANGEFINDER_DROPOUT_HOLD_US = 120000; // hold last valid height for brief dropouts
+  const uint32_t dropoutHoldUs = _model.baroActive()
+      ? 260000u // baro traffic can create short I2C read gaps on some setups
+      : 140000u;
   const float cosTheta = _model.state.attitude.cosTheta;
   const bool sampleValid = rawValid && cosTheta >= RANGEFINDER_MAX_TILT_COS;
 
@@ -123,7 +125,7 @@ int RangefinderSensor::applySample(int32_t raw)
     _lastGoodDistance = rf.distance;
     _lastGoodHeight = rf.height;
   }
-  else if (_lastGoodTs != 0 && (uint32_t)(now - _lastGoodTs) <= RANGEFINDER_DROPOUT_HOLD_US)
+  else if (_lastGoodTs != 0 && (uint32_t)(now - _lastGoodTs) <= dropoutHoldUs)
   {
     rf.valid = true;
     rf.distance = _lastGoodDistance;

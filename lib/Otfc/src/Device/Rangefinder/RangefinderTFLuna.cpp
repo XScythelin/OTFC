@@ -75,22 +75,24 @@ RangefinderDeviceType RangefinderTFLuna::getType() const
 
 int32_t RangefinderTFLuna::readRangeMm()
 {
-  uint8_t data[TFLUNA_DATA_SIZE] = {0};
-  if (readData(data, sizeof(data)))
+  // Prefer full frame reads with checksum validation to reject corrupted samples.
+  uint8_t frame[TFLUNA_FRAME_SIZE] = {0};
+  if (readRawFrame(frame))
   {
-    const uint16_t distanceCm = (uint16_t)data[0] | ((uint16_t)data[1] << 8);
-    const uint16_t strength = (uint16_t)data[2] | ((uint16_t)data[3] << 8);
+    const uint16_t distanceCm = (uint16_t)frame[2] | ((uint16_t)frame[3] << 8);
+    const uint16_t strength = (uint16_t)frame[4] | ((uint16_t)frame[5] << 8);
 
     if (distanceCm == 0 || strength == 0) return -1;
 
     return (int32_t)distanceCm * 10; // cm -> mm
   }
 
-  uint8_t frame[TFLUNA_FRAME_SIZE] = {0};
-  if (!readRawFrame(frame)) return -1;
+  // Fallback for targets where frame mode is not available/reliable.
+  uint8_t data[TFLUNA_DATA_SIZE] = {0};
+  if (!readData(data, sizeof(data))) return -1;
 
-  const uint16_t distanceCm = (uint16_t)frame[2] | ((uint16_t)frame[3] << 8);
-  const uint16_t strength = (uint16_t)frame[4] | ((uint16_t)frame[5] << 8);
+  const uint16_t distanceCm = (uint16_t)data[0] | ((uint16_t)data[1] << 8);
+  const uint16_t strength = (uint16_t)data[2] | ((uint16_t)data[3] << 8);
   if (distanceCm == 0 || strength == 0) return -1;
 
   return (int32_t)distanceCm * 10; // cm -> mm

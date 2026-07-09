@@ -42,8 +42,8 @@ int FAST_CODE_ATTR SensorManager::read()
 
   if(_mag.update()) return 1;
 
-  if(_baro.update()) return 1;
   if(_rangefinder.update()) return 1;
+  if(_baro.update()) return 1;
   if(_voltage.update()) return 1;
 
   return 0;
@@ -106,9 +106,9 @@ int SensorManager::updateDelayed()
 
   if(_mag.update()) return 1;
 
-  if(_baro.update()) return 1;
-
   if(_rangefinder.update()) return 1;
+
+  if(_baro.update()) return 1;
 
   if(_voltage.update()) return 0;
 

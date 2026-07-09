@@ -43,9 +43,11 @@ int8_t FAST_CODE_ATTR BusI2C::read(uint8_t devAddr, uint8_t regAddr, uint8_t len
   }
   _dev.requestFrom(devAddr, length);
 
-  for (; _dev.available() && (_timeout == 0 || millis() - t1 < _timeout); count++)
+  for (; count < length && (_timeout == 0 || millis() - t1 < _timeout);)
   {
+    if (!_dev.available()) continue;
     data[count] = _dev.read();
+    count++;
     //D("i2c:r1", count, data[count]);
   }
 
