@@ -1,12 +1,12 @@
 #include "platform.h"
 
-const char * const targetName = OTFC_TARGET;
-const char * const targetVersion = STR(OTFC_VERSION);
-const char * const shortGitRevision = STR(OTFC_REVISION);
+const char * const targetName = XSFC_TARGET;
+const char * const targetVersion = STR(XSFC_VERSION);
+const char * const shortGitRevision = STR(XSFC_REVISION);
 const char * const buildTime = __TIME__;
 const char * const buildDate = __DATE__;
 const char * flightControllerIdentifier = "BTFL";
-const char * boardIdentifier = "1TFC";
+const char * boardIdentifier = "XSFC";
 
 PG_RESET_TEMPLATE_DEF(serialConfig_t, serialConfig);
 PG_RESET_TEMPLATE_DEF(mixerConfig_t, mixerConfig);

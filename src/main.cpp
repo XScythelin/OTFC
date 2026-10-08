@@ -2,7 +2,7 @@
 #include <Wire.h>
 #include <SPI.h>
 #include <EEPROM.h>
-#include <Otfc.h>
+#include <Xsfc.h>
 #include <Kalman.h>
 #include <Madgwick.h>
 #include <Mahony.h>
@@ -11,22 +11,22 @@
 #include <EscDriver.h>
 #include <EspWire.h>
 #include <Gps.hpp>
-#if defined(OTFC_ESPNOW)
+#if defined(XSFC_ESPNOW)
 #include <EspNowRcLink/Receiver.h>
 #endif
-#ifdef OTFC_WIFI
+#ifdef XSFC_WIFI
 #include <WiFi.h>
 #endif
-#include "Debug_Otfc.h"
+#include "Debug_Xsfc.h"
 
 #ifdef ESP32
 void IRAM_ATTR serialEventRun(void) {}
 #endif
 
-Otfc::Otfc otfc;
+Xsfc::Xsfc xsfc;
 
-#if defined(OTFC_MULTI_CORE)
-  #if defined(OTFC_FREE_RTOS)
+#if defined(XSFC_MULTI_CORE)
+  #if defined(XSFC_FREE_RTOS)
 
     // ESP32 multicore
     #include <freertos/FreeRTOS.h>
@@ -65,12 +65,12 @@ Otfc::Otfc otfc;
 
     void gyroTask(void *pvParameters)
     {
-      otfc.begin();
-      gyroTimerInit(gyroTimerIsr, otfc.getGyroInterval());
+      xsfc.begin();
+      gyroTimerInit(gyroTimerIsr, xsfc.getGyroInterval());
       while(true)
       {
         ulTaskNotifyTake(pdTRUE, portMAX_DELAY); // wait for timer isr notification
-        otfc.update(true);
+        xsfc.update(true);
       }
     }
 
@@ -78,7 +78,7 @@ Otfc::Otfc otfc;
     {
       while(true)
       {
-        otfc.updateOther();
+        xsfc.updateOther();
       }
     }
 
@@ -88,7 +88,7 @@ Otfc::Otfc otfc;
       // internal task priorities
       // PRO(0): hi-res timer(22), timer(1), event-loop(20), lwip(18/any), wifi(23), wpa(2/any), BT/vhci(23), NimBle(21), BT/other(19,20,22), Eth(15), Mqtt(5/any)
       // APP(1): free
-      otfc.load();
+      xsfc.load();
       xTaskCreateUniversal(gyroTask, "gyroTask", 8192, NULL, 24, &gyroTaskHandle, 1);
       xTaskCreateUniversal(pidTask,  "pidTask",  8192, NULL,  1, &pidTaskHandle,  0);
       vTaskDelete(NULL); // delete arduino loop task
@@ -107,13 +107,13 @@ Otfc::Otfc otfc;
   // single core
   void setup()
   {
-    otfc.load();
-    otfc.begin();
+    xsfc.load();
+    xsfc.begin();
   }
   void loop()
   {
-    otfc.update();
-    otfc.updateOther();
+    xsfc.update();
+    xsfc.updateOther();
   }
 
 #endif

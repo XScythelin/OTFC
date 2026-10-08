@@ -23,31 +23,31 @@
 #endif
 
 #if defined(ESP8266)
-#define OTFC_TARGET "ESP8266"
+#define XSFC_TARGET "ESP8266"
 #elif defined(ESP32S3)
-#define OTFC_TARGET "ESP32S3"
+#define XSFC_TARGET "ESP32S3"
 #elif defined(ESP32S2)
-#define OTFC_TARGET "ESP32S2"
+#define XSFC_TARGET "ESP32S2"
 #elif defined(ESP32C3)
-#define OTFC_TARGET "ESP32C3"
+#define XSFC_TARGET "ESP32C3"
 #elif defined(ESP32)
-#define OTFC_TARGET "ESP32"
+#define XSFC_TARGET "ESP32"
 #elif defined(ARCH_RP2350)
-#define OTFC_TARGET "RP2350"
+#define XSFC_TARGET "RP2350"
 #elif defined(ARCH_RP2040)
-#define OTFC_TARGET "RP2040"
+#define XSFC_TARGET "RP2040"
 #elif defined(UNIT_TEST)
-#define OTFC_TARGET "UNIT"
+#define XSFC_TARGET "UNIT"
 #else
   #error "Unsupported platform"
 #endif
 
-#ifndef OTFC_REVISION
-#define OTFC_REVISION 0000000
+#ifndef XSFC_REVISION
+#define XSFC_REVISION 0000000
 #endif
 
-#ifndef OTFC_VERSION
-#define OTFC_VERSION v0.0.0
+#ifndef XSFC_VERSION
+#define XSFC_VERSION v0.0.0
 #endif
 
 #define MAX_SUPPORTED_MOTORS 8
@@ -259,7 +259,7 @@ typedef struct serialPort_s {
     uint32_t txBufferTail;
 
     serialReceiveCallbackPtr rxCallback;
-    void * otfcDevice;
+    void * xsfcDevice;
 } serialPort_t;
 
 typedef enum {
